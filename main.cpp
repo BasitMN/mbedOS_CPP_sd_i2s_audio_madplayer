@@ -28,18 +28,33 @@
  * use "decoder.h" for now
  * Have fun, 
  *   Andreas Gruen 
+ * *** Version 3:  ***
+ * moved another memory block into AHB RAM, giving more room for
+ * stereo buffer.
+ * moved content of decode() to main()
+ * decoding	is now safe to be called multiple times (bug in older versions)
+ * Output routine now fills stereo buffer, DAC output sums channels,
+ * just for demonstration that stereo output could go here
  */
 
 #include "mbed.h"
 # include "decoder.h"
 
-static int decode(void);
 FILE *fp;
 #include "MSCFileSystem.h"
 MSCFileSystem fs("usb");
 
-volatile unsigned short dacbuf[1200];
-volatile unsigned short *dac_s, *dac_e;
+static enum mad_flow input(void *data,struct mad_stream *stream);
+static enum mad_flow output(void *data,struct mad_header const *header,struct mad_pcm *pcm);
+static enum mad_flow error_fn(void *data,struct mad_stream *stream,struct mad_frame *frame);
+
+struct dacout_s {
+  unsigned short l;
+  unsigned short r;
+ };
+
+volatile dacout_s dacbuf[1152];
+volatile dacout_s *dac_s, *dac_e;
 
 AnalogOut dac(p18);
 Ticker dacclk;
@@ -48,26 +63,33 @@ void dacout(void)
 {
   if(dac_s < dac_e)  
   {
-    dac.write_u16(*dac_s++);
+    dac.write_u16((dac_s->l/2)+(dac_s->r/2));
+	dac_s++;
   }
 }
 
 int main(int argc, char *argv[])
 {
-  int ret;
+  int result;
   Timer t;
+  struct mad_decoder decoder;
 
   dac_s = dac_e = dacbuf;
   dacclk.attach_us(dacout,23);
-
-  fp = fopen("/usb/test.mp3","rb");
-  if(!fp)  return(printf("no file\r\n"));
-  t.start();
-  ret = decode();
-  t.stop();
-  printf("decode ret=%d in %d ms\r\n",ret,t.read_ms());
-  fclose(fp);
-
+  while(1) {
+	  fp = fopen("/usb/test.mp3","rb");
+	
+	  if(!fp)  return(printf("file error\r\n"));
+	  fprintf(stderr,"decode start\r\n");
+	  mad_decoder_init(&decoder, NULL,input, 0, 0, output,error_fn, 0);
+	  t.reset();
+	  t.start();
+	  result = mad_decoder_run(&decoder, MAD_DECODER_MODE_SYNC);
+	  t.stop();
+	  fprintf(stderr,"decode ret=%d in %d ms\r\n",result,t.read_ms());
+	  mad_decoder_finish(&decoder);
+	  fclose(fp);
+	}
   return 0;
 }
 
@@ -149,33 +171,27 @@ enum mad_flow output(void *data,
   unsigned int nchannels, nsamples;
   mad_fixed_t const *left_ch, *right_ch;
 
+
   /* pcm->samplerate contains the sampling frequency */
   nchannels = pcm->channels;
   nsamples  = pcm->length;
   left_ch   = pcm->samples[0];
   right_ch  = pcm->samples[1];
-  
-  while(dac_s < dac_e) wait_us(10);
-  dac_e = dacbuf;  // potential thread problem ??
-  dac_s = dacbuf;  
+
+  while(dac_s < dac_e) wait_us(1);
+  dac_e = dacbuf;  // potential thread problem ??  no...
+  dac_s = dacbuf;
 
   while (nsamples--) {
-    signed int sample;
-
-    /* output sample(s) in 16-bit signed little-endian PCM */
-
-    sample = scale(*left_ch++);     
-    *dac_e++ = sample  +32700;
-    //putchar((sample >> 0) & 0xff);
-    //putchar((sample >> 8) & 0xff);
-	/* the second channel is not supported at the moment*/
-    if (nchannels == 2) {
-      sample = scale(*right_ch++);
-      //putchar((sample >> 0) & 0xff);
-      //putchar((sample >> 8) & 0xff);
-    }
+    signed int sample_l,sample_r;
+    sample_l = scale(*left_ch);
+    sample_r = scale(*right_ch);
+    dac_e->l = sample_l  +32768;
+    dac_e->r = sample_r  +32768;
+    dac_e++;
+    left_ch++;
+    right_ch++;
   }
-
   return MAD_FLOW_CONTINUE;
 }
 
@@ -200,38 +216,6 @@ enum mad_flow error_fn(void *data,
   /* return MAD_FLOW_BREAK here to stop decoding (and propagate an error) */
 
   return MAD_FLOW_CONTINUE;
-}
-
-/*
- * This is the function called by main() above to perform all the decoding.
- * It instantiates a decoder object and configures it with the input,
- * output, and error callback functions above. A single call to
- * mad_decoder_run() continues until a callback function returns
- * MAD_FLOW_STOP (to stop decoding) or MAD_FLOW_BREAK (to stop decoding and
- * signal an error).
- */
-
-static
-int decode()
-{
-  struct mad_decoder decoder;
-  int result;
-
-  /* configure input, output, and error functions */
-
-  mad_decoder_init(&decoder, NULL,
-           input, 0 /* header */, 0 /* filter */, output,
-           error_fn, 0 /* message */);
-
-  /* start decoding */
-
-  result = mad_decoder_run(&decoder, MAD_DECODER_MODE_SYNC);
-
-  /* release the decoder */
-
-  mad_decoder_finish(&decoder);
-
-  return result;
 }
 
 

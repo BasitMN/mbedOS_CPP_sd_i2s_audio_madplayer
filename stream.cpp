@@ -62,7 +62,9 @@ void mad_stream_init(struct mad_stream *stream)
 void mad_stream_finish(struct mad_stream *stream)
 {
   if (stream->main_data) {
+#if !defined(TARGET_LPC1768)
     free(stream->main_data);
+#endif
     stream->main_data = 0;
   }
 

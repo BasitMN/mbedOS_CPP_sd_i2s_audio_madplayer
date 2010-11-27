@@ -25,10 +25,6 @@
 
 # include <stdio.h>
 
-# ifdef HAVE_ASSERT_H
-#  include <assert.h>
-# endif
-
 # include "timer.h"
 
 mad_timer_t const mad_timer_zero = { 0, 0 };

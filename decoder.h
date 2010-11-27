@@ -49,12 +49,6 @@ struct mad_decoder {
 
   int options;
 
-  struct {
-    long pid;
-    int in;
-    int out;
-  } async;
-
   struct mad_sync_s *sync;
 
   void *cb_data;

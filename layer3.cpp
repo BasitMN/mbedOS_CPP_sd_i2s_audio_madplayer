@@ -26,10 +26,6 @@
 # include <stdlib.h>
 # include <string.h>
 
-# ifdef HAVE_ASSERT_H
-#  include <assert.h>
-# endif
-
 # ifdef HAVE_LIMITS_H
 #  include <limits.h>
 # else
@@ -1253,7 +1249,7 @@ enum mad_error III_huffdecode(struct mad_bitptr *ptr, mad_fixed_t xr[576],
     }
   }
 
-  assert(-bits_left <= MAD_BUFFER_GUARD * CHAR_BIT);
+  /* assert(-bits_left <= MAD_BUFFER_GUARD * CHAR_BIT);*/
 
 # if 0 && defined(DEBUG)
   if (bits_left < 0)
@@ -2456,14 +2452,14 @@ enum mad_error III_decode(struct mad_bitptr *ptr, struct mad_frame *frame,
 	/* long blocks */
 	for (sb = 0; sb < 2; ++sb, l += 18) {
 	  III_imdct_l(&xr[ch][l], output, block_type);
-	  III_overlap(output, (*frame->overlap)[ch][sb], sample, sb);
+	  III_overlap(output, (frame->overlap)[ch][sb], sample, sb);
 	}
       }
       else {
 	/* short blocks */
 	for (sb = 0; sb < 2; ++sb, l += 18) {
 	  III_imdct_s(&xr[ch][l], output);
-	  III_overlap(output, (*frame->overlap)[ch][sb], sample, sb);
+	  III_overlap(output, (frame->overlap)[ch][sb], sample, sb);
 	}
       }
 
@@ -2481,7 +2477,7 @@ enum mad_error III_decode(struct mad_bitptr *ptr, struct mad_frame *frame,
 	/* long blocks */
 	for (sb = 2; sb < sblimit; ++sb, l += 18) {
 	  III_imdct_l(&xr[ch][l], output, channel->block_type);
-	  III_overlap(output, (*frame->overlap)[ch][sb], sample, sb);
+	  III_overlap(output, (frame->overlap)[ch][sb], sample, sb);
 
 	  if (sb & 1)
 	    III_freqinver(sample, sb);
@@ -2491,7 +2487,7 @@ enum mad_error III_decode(struct mad_bitptr *ptr, struct mad_frame *frame,
 	/* short blocks */
 	for (sb = 2; sb < sblimit; ++sb, l += 18) {
 	  III_imdct_s(&xr[ch][l], output);
-	  III_overlap(output, (*frame->overlap)[ch][sb], sample, sb);
+	  III_overlap(output, (frame->overlap)[ch][sb], sample, sb);
 
 	  if (sb & 1)
 	    III_freqinver(sample, sb);
@@ -2501,7 +2497,7 @@ enum mad_error III_decode(struct mad_bitptr *ptr, struct mad_frame *frame,
       /* remaining (zero) subbands */
 
       for (sb = sblimit; sb < 32; ++sb) {
-	III_overlap_z((*frame->overlap)[ch][sb], sample, sb);
+	III_overlap_z((frame->overlap)[ch][sb], sample, sb);
 
 	if (sb & 1)
 	  III_freqinver(sample, sb);
@@ -2530,16 +2526,12 @@ int mad_layer_III(struct mad_stream *stream, struct mad_frame *frame)
   /* allocate Layer III dynamic structures */
 
   if (stream->main_data == 0) {
+#if defined(TARGET_LPC1768)
+    stream->main_data = (unsigned char (*)[MAD_BUFFER_MDLEN])mad_malloc(MAD_BUFFER_MDLEN);
+#else
     stream->main_data = (unsigned char (*)[MAD_BUFFER_MDLEN])malloc(MAD_BUFFER_MDLEN);
+#endif
     if (stream->main_data == 0) {
-      stream->error = MAD_ERROR_NOMEM;
-      return -1;
-    }
-  }
-
-  if (frame->overlap == 0) {
-    frame->overlap = (mad_fixed_t (*)[2][32][18])calloc(2 * 32 * 18, sizeof(mad_fixed_t));
-    if (frame->overlap == 0) {
       stream->error = MAD_ERROR_NOMEM;
       return -1;
     }
@@ -2632,8 +2624,7 @@ int mad_layer_III(struct mad_stream *stream, struct mad_frame *frame)
 		   *stream->main_data + stream->md_len - si.main_data_begin);
 
       if (md_len > si.main_data_begin) {
-	assert(stream->md_len + md_len -
-	       si.main_data_begin <= MAD_BUFFER_MDLEN);
+	/*assert(stream->md_len + md_len -si.main_data_begin <= MAD_BUFFER_MDLEN); */
 
 	memcpy(*stream->main_data + stream->md_len,
 	       mad_bit_nextbyte(&stream->ptr),
