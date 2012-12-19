@@ -60,26 +60,13 @@ struct dacout_s {
 volatile dacout_s dacbuf[1152];
 volatile dacout_s *dac_s, *dac_e;
 
-Ticker dacclk;
- 
-void dacout(void)
-{
-  if(dac_s < dac_e)  
-  {
-    dac_s++;
-  }
-}
-
 void isr_audio () {
     int i;
-    short l, r;
     static int buf[4] = {0,0,0,0};
 
     for (i = 0; i < 4; i ++) {
         if (dac_s < dac_e) {
-            l = dac_s->l - 0x8000;
-            r = dac_s->r - 0x8000;
-            buf[i] = (l << 16) | (r & 0xffff);
+            buf[i] = (dac_s->l << 16) | dac_s->r;
             dac_s++;
             led3 = !led3;
         } else {
@@ -102,7 +89,6 @@ int main(int argc, char *argv[])
 
   pc.baud(115200);
   dac_s = dac_e = dacbuf;
-//  dacclk.attach_us(dacout,23);
 
     audio.power(0x02); // mic off
     audio.outputVolume(1, 1);
@@ -223,8 +209,10 @@ enum mad_flow output(void *data,
     signed int sample_l,sample_r;
     sample_l = scale(*left_ch);
     sample_r = scale(*right_ch);
-    dac_e->l = sample_l  +32768;
-    dac_e->r = sample_r  +32768;
+//    dac_e->l = sample_l  +32768;
+//    dac_e->r = sample_r  +32768;
+    dac_e->l = sample_l;
+    dac_e->r = sample_r;
     dac_e++;
     left_ch++;
     right_ch++;
