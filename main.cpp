@@ -16,9 +16,9 @@
  * The output current is high enough to drive small headphones or active 
  * speakers directly.
  *
- * Schematic: :-)		   
+ * Schematic: :-)           
  *  MBED Pin 18 (AOut)  o--||--o  Headphone Left
- *	MBED Pin 1 (GND)	o------o  Headphone Common
+ *    MBED Pin 1 (GND)    o------o  Headphone Common
  *
  * It has been tested with fixed bitrate MP3's up to 320kbps and VBR files.
  * 
@@ -32,17 +32,21 @@
  * moved another memory block into AHB RAM, giving more room for
  * stereo buffer.
  * moved content of decode() to main()
- * decoding	is now safe to be called multiple times (bug in older versions)
+ * decoding    is now safe to be called multiple times (bug in older versions)
  * Output routine now fills stereo buffer, DAC output sums channels,
  * just for demonstration that stereo output could go here
  */
 
 #include "mbed.h"
-# include "decoder.h"
+#include "decoder.h"
+#include "TLV320.h"
 
+DigitalOut led1(LED1), led2(LED2), led3(LED3), led4(LED4);
+Serial pc(USBTX, USBRX);
 FILE *fp;
-#include "MSCFileSystem.h"
-MSCFileSystem fs("usb");
+#include "SDHCFileSystem.h"
+SDFileSystem sd(p11, p12, p13, p14, "sd");
+TLV320 audio(p9, p10, 0x34, p5, p6, p7, p8, p16); // I2S Codec
 
 static enum mad_flow input(void *data,struct mad_stream *stream);
 static enum mad_flow output(void *data,struct mad_header const *header,struct mad_pcm *pcm);
@@ -56,16 +60,38 @@ struct dacout_s {
 volatile dacout_s dacbuf[1152];
 volatile dacout_s *dac_s, *dac_e;
 
-AnalogOut dac(p18);
 Ticker dacclk;
-
+ 
 void dacout(void)
 {
   if(dac_s < dac_e)  
   {
-    dac.write_u16((dac_s->l/2)+(dac_s->r/2));
-	dac_s++;
+    dac_s++;
   }
+}
+
+void isr_audio () {
+    int i;
+    short l, r;
+    static int buf[4] = {0,0,0,0};
+
+    for (i = 0; i < 4; i ++) {
+        if (dac_s < dac_e) {
+            l = dac_s->l - 0x8000;
+            r = dac_s->r - 0x8000;
+            buf[i] = (l << 16) | (r & 0xffff);
+            dac_s++;
+            led3 = !led3;
+        } else {
+            if (i) {
+                buf[i] = buf[i - 1];
+            } else {
+                buf[i] = buf[3];
+            }
+            led4 = !led4;
+        }
+    }
+    audio.write(buf, 0, 4);
 }
 
 int main(int argc, char *argv[])
@@ -74,23 +100,34 @@ int main(int argc, char *argv[])
   Timer t;
   struct mad_decoder decoder;
 
+  pc.baud(115200);
   dac_s = dac_e = dacbuf;
-  dacclk.attach_us(dacout,23);
+//  dacclk.attach_us(dacout,23);
+
+    audio.power(0x02); // mic off
+    audio.outputVolume(1, 1);
+    audio.inputVolume(0.7, 0.7);
+    audio.frequency(44100);
+    audio.attach(&isr_audio);
+    audio.start(TRANSMIT);
+
   while(1) {
-	  fp = fopen("/usb/test.mp3","rb");
-	
-	  if(!fp)  return(printf("file error\r\n"));
-	  fprintf(stderr,"decode start\r\n");
-	  mad_decoder_init(&decoder, NULL,input, 0, 0, output,error_fn, 0);
-	  t.reset();
-	  t.start();
-	  result = mad_decoder_run(&decoder, MAD_DECODER_MODE_SYNC);
-	  t.stop();
-	  fprintf(stderr,"decode ret=%d in %d ms\r\n",result,t.read_ms());
-	  mad_decoder_finish(&decoder);
-	  fclose(fp);
-	}
-  return 0;
+      fp = fopen("/sd/canyouparty.mp3","rb");
+    
+      if(!fp)  return(printf("file error\r\n"));
+      fprintf(stderr,"decode start\r\n");
+      led1 = 1;
+      mad_decoder_init(&decoder, NULL,input, 0, 0, output,error_fn, 0);
+      t.reset();
+      t.start();
+      led2 = 1;
+      result = mad_decoder_run(&decoder, MAD_DECODER_MODE_SYNC);
+      t.stop();
+      fprintf(stderr,"decode ret=%d in %d ms\r\n",result,t.read_ms());
+      led2 = 0;
+      mad_decoder_finish(&decoder);
+      fclose(fp);
+    }
 }
 
 /*
@@ -208,10 +245,10 @@ enum mad_flow error_fn(void *data,
             struct mad_frame *frame)
 {
   /* ID3 tags will cause warnings and short noise, ignore it for the moment*/
-
+/*
   fprintf(stderr, "decoding error 0x%04x (%s)\n",
       stream->error, mad_stream_errorstr(stream));
-      
+*/    
 
   /* return MAD_FLOW_BREAK here to stop decoding (and propagate an error) */
 

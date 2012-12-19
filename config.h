@@ -28,11 +28,11 @@
  * which treats all files as C++ code and does not allow additional 
  * defines on the command line.
  * The changes are: 
- * 	forced inclusion of "config.h" in all files
+ *     forced inclusion of "config.h" in all files
  *  forced inclusion of "mbed.h" in all files via "config.h"
- *	typecasts from void *
- * 	renaming of all .c-Files to .cpp
- * 	renaming of all .dat-Files to .h 
+ *    typecasts from void *
+ *     renaming of all .c-Files to .cpp
+ *     renaming of all .dat-Files to .h 
  *
  * The exact changes can bee seen by a diff-tool comparing with 
  * the libmad-0.15.1b source.
