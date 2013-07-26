@@ -57,8 +57,8 @@ struct dacout_s {
   unsigned short r;
  };
 
-volatile dacout_s dacbuf[1152];
-volatile dacout_s *dac_s, *dac_e;
+dacout_s dacbuf[1152];
+dacout_s * volatile dac_s, * volatile dac_e;
 
 void isr_audio () {
     int i;
@@ -70,6 +70,7 @@ void isr_audio () {
             dac_s++;
             led3 = !led3;
         } else {
+            // under flow
             if (i) {
                 buf[i] = buf[i - 1];
             } else {
@@ -91,14 +92,13 @@ int main(int argc, char *argv[])
   dac_s = dac_e = dacbuf;
 
     audio.power(0x02); // mic off
-    audio.outputVolume(1, 1);
     audio.inputVolume(0.7, 0.7);
     audio.frequency(44100);
     audio.attach(&isr_audio);
     audio.start(TRANSMIT);
 
   while(1) {
-      fp = fopen("/sd/canyouparty.mp3","rb");
+      fp = fopen("/sd/filename.mp3","rb");
     
       if(!fp)  return(printf("file error\r\n"));
       fprintf(stderr,"decode start\r\n");
@@ -106,11 +106,10 @@ int main(int argc, char *argv[])
       mad_decoder_init(&decoder, NULL,input, 0, 0, output,error_fn, 0);
       t.reset();
       t.start();
-      led2 = 1;
       result = mad_decoder_run(&decoder, MAD_DECODER_MODE_SYNC);
       t.stop();
       fprintf(stderr,"decode ret=%d in %d ms\r\n",result,t.read_ms());
-      led2 = 0;
+      led1 = 0;
       mad_decoder_finish(&decoder);
       fclose(fp);
     }
@@ -201,7 +200,10 @@ enum mad_flow output(void *data,
   left_ch   = pcm->samples[0];
   right_ch  = pcm->samples[1];
 
-  while(dac_s < dac_e) wait_us(1);
+//  while(dac_s < dac_e) wait_us(1);
+  while(dac_s < dac_e) {
+    led2 = !led2;
+  }
   dac_e = dacbuf;  // potential thread problem ??  no...
   dac_s = dacbuf;
 
