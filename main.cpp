@@ -27,7 +27,7 @@
  * Last warning: the main include file "mad.h" maybe not up to date,
  * use "decoder.h" for now
  * Have fun, 
- *   Andreas Gruen 
+ *   Andreas Gruen / Basit M
  * *** Version 3:  ***
  * moved another memory block into AHB RAM, giving more room for
  * stereo buffer.
@@ -244,5 +244,6 @@ enum mad_flow error_fn(void *data,
 
   return MAD_FLOW_CONTINUE;
 }
+
 
 
