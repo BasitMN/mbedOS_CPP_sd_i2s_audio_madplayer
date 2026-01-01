@@ -1,41 +1,4 @@
-/* This file demonstrates the use of the modified libmad library on LPC1768
- * Changes to the library are documented in config.h.
- *
- * The main change is to use parts of the AHB RAM dedicated to the ethernet module,
- * because standard RAM is not sufficient for decoding.
- * This means the ethernet module cannot be used !!!
- *
- * It plays a file "test.mp3" from an external USB-drive/USB-stick. 
- * For wiring of the USB-connector, see mbed.org
- * ID3 decoding is not present at the moment and will cause warnings 
- * on stderr, and some short noise at the beginning or end of playback.
- *
- * Output is only for one channel on the DAC (AnalogOut) pin.
- * (For connections see datasheets/mbed.org)
- * This pin should be decoupled with a capacitor (100u or so) to remove DC.
- * The output current is high enough to drive small headphones or active 
- * speakers directly.
- *
- * Schematic: :-)           
- *  MBED Pin 18 (AOut)  o--||--o  Headphone Left
- *    MBED Pin 1 (GND)    o------o  Headphone Common
- *
- * It has been tested with fixed bitrate MP3's up to 320kbps and VBR files.
- * 
- * The remaining RAM is very limited, so don't overuse it !
- * The MSCFileSystem library from mbed.org is needed !
- * Last warning: the main include file "mad.h" maybe not up to date,
- * use "decoder.h" for now
- * Have fun, 
- *   Andreas Gruen / Basit M
- * *** Version 3:  ***
- * moved another memory block into AHB RAM, giving more room for
- * stereo buffer.
- * moved content of decode() to main()
- * decoding    is now safe to be called multiple times (bug in older versions)
- * Output routine now fills stereo buffer, DAC output sums channels,
- * just for demonstration that stereo output could go here
- */
+
 
 #include "mbed.h"
 #include "decoder.h"
@@ -244,6 +207,7 @@ enum mad_flow error_fn(void *data,
 
   return MAD_FLOW_CONTINUE;
 }
+
 
 
 
